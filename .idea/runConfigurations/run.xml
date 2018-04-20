@@ -2,7 +2,7 @@
   <configuration default="false" name="run" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="org.graylog.labs.esclient.Main" />
     <module name="elastic-client-compat-test" />
-    <option name="PROGRAM_PARAMETERS" value="-h 127.0.0.1 -h 127.0.0.1:9201" />
+    <option name="PROGRAM_PARAMETERS" value="run -h 127.0.0.1 -h 127.0.0.1:9201" />
     <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
     <extension name="coverage">
       <pattern>

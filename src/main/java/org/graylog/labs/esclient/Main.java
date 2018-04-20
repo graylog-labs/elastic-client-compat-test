@@ -12,7 +12,7 @@ public class Main {
 
   public static void main(String[] args) {
     final CliBuilder<Runnable> builder = Cli.<Runnable>builder("esclient-test")
-        .withDefaultCommand(RequestRunner.class)
+        .withDefaultCommand(Help.class)
         .withCommands(Help.class, RequestRunner.class);
     builder.withParser()
         .withErrorHandler(new CollectAll());

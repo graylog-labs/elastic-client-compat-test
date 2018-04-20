@@ -25,6 +25,12 @@ Simply run the jar directly:
 java -jar target/esclient-test.jar help
 ```
 
+or use the wrapper script:
+
+```
+./esclient-test help
+```
+
 This will print:
 
 ```

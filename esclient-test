@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [ ! -f target/esclient-test.jar ]; then
+	echo "Please build the project first using: mvn clean compile package\n\n"
+	exit 1
+fi
+
+java -jar target/esclient-test.jar $@
