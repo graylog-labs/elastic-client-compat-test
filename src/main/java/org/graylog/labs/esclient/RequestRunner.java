@@ -1,17 +1,24 @@
 package org.graylog.labs.esclient;
 
+import static java.util.Collections.emptyMap;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.rvesse.airline.annotations.Command;
 import com.github.rvesse.airline.annotations.Option;
 import com.github.rvesse.airline.annotations.restrictions.Required;
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
+import com.google.common.io.LineProcessor;
+import com.google.common.io.Resources;
 import com.google.common.net.HostAndPort;
 import java.io.IOException;
-import java.util.Collections;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import javax.annotation.Nonnull;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -20,6 +27,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.main.MainResponse;
@@ -47,9 +55,14 @@ public class RequestRunner implements Runnable {
   @Option(name = {"-h", "--host"}, title = "elasticsearch host")
   private List<HostAndPort> hosts;
 
+  @Option(name = {"-k", "--keep"}, title = "do not run cleanup tasks")
+  private boolean skipCleanup = false;
+
   private RestHighLevelClient high;
   private RestClient low;
   private final ObjectMapper objectMapper = new ObjectMapper();
+
+  private List<Runnable> cleanupTasks = Lists.newArrayList();
 
   public void run() {
     System.out.println("Running elasticsearch client " + Version.CURRENT);
@@ -78,6 +91,9 @@ public class RequestRunner implements Runnable {
       e.printStackTrace();
     } finally {
       try {
+        if (!skipCleanup) {
+          cleanupTasks.forEach(Runnable::run);
+        }
         high.close();
       } catch (IOException e) {
         e.printStackTrace();
@@ -97,7 +113,6 @@ public class RequestRunner implements Runnable {
   }
 
   private void prepareIndex() throws IOException {
-
     final Map<String, Object> messageTemplate = new IndexMapping5()
         .messageTemplate(indexName + "_*", "standard");
 
@@ -106,11 +121,19 @@ public class RequestRunner implements Runnable {
         low.performRequest(
             "PUT",
             "_template/" + indexName + "_template",
-            Collections.emptyMap(),
+            emptyMap(),
             entity);
     if (templateCreateResponse.getStatusLine().getStatusCode() != 200) {
       throw new IllegalStateException("Could not create template: " + templateCreateResponse.getStatusLine().getReasonPhrase());
     }
+    cleanupTasks.add(() -> {
+      try {
+        low.performRequest("DELETE", "_template/" + indexName + "_template");
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    });
+
     final Settings settings = Settings.builder()
         .put("index.number_of_shards", 2)
         .put("index.number_of_replicas", 0)
@@ -120,12 +143,39 @@ public class RequestRunner implements Runnable {
     if (!createIndexResponse.isShardsAcknowledged()) {
       throw new IllegalStateException("Create index failed");
     }
+    cleanupTasks.add(() -> {
+      try {
+        high.indices().delete(new DeleteIndexRequest(indexName + "_0"));
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    });
   }
 
   private void bulkIndex() throws IOException {
-    final BulkRequest br = new BulkRequest();
-    br.add(new IndexRequest(indexName).source("", XContentType.JSON));
-    high.bulk(br);
+    final URL firstBatch = Resources.getResource("bulk/batch_1.txt");
+    final BulkRequest br = Resources.readLines(firstBatch, StandardCharsets.UTF_8, new LineProcessor<BulkRequest>() {
+      private final BulkRequest br = new BulkRequest();
+      @Override
+      public boolean processLine(@Nonnull String line) {
+        // skip comments and empty lines
+        if (line.isEmpty() || line.trim().startsWith("#")) {
+          return true;
+        }
+        br.add(new IndexRequest(indexName + "_0", "message").source(line, XContentType.JSON));
+        return true;
+      }
+
+      @Override
+      public BulkRequest getResult() {
+        return br;
+      }
+    });
+    if (br.numberOfActions() > 0) {
+      high.bulk(br);
+    } else {
+      System.err.println("Bulk index request contains no actions, is this correct?");
+    }
   }
 
   private void performSearches() throws IOException {
