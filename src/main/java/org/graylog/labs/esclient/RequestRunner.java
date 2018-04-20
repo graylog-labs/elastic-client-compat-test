@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -153,7 +154,7 @@ public class RequestRunner implements Runnable {
   }
 
   private void bulkIndex() throws IOException {
-    final URL firstBatch = Resources.getResource("bulk/batch_1.txt");
+    final URL firstBatch = Resources.getResource("bulk/batch_1.json");
     final BulkRequest br = Resources.readLines(firstBatch, StandardCharsets.UTF_8, new LineProcessor<BulkRequest>() {
       private final BulkRequest br = new BulkRequest();
       @Override
@@ -172,7 +173,10 @@ public class RequestRunner implements Runnable {
       }
     });
     if (br.numberOfActions() > 0) {
-      high.bulk(br);
+      final BulkResponse bulk = high.bulk(br);
+      if (bulk.hasFailures()) {
+        throw new IllegalStateException("Unable to index some documents: " + bulk.buildFailureMessage() );
+      }
     } else {
       System.err.println("Bulk index request contains no actions, is this correct?");
     }

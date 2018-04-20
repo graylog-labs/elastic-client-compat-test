@@ -5,15 +5,15 @@
    * ClearScroll
  * Search
    * index ranges: aggs + filter, indexRangeStatsOfIndex
-   * MultiSearch: always one search to work around URL limit
+   * MultiSearch
  * Index management: org.graylog2.indexer.indices.Indices
    * Settings
      * GetSettings: index + alias
      * UpdateSettings
    * Index
-     * CreateIndex: settings
+     * CreateIndex: settings (done, high)
      * CloseIndex
-     * DeleteIndex
+     * DeleteIndex (done, high)
      * ForceMerge
      * Flush
      * OpenIndex
@@ -23,8 +23,8 @@
    * Cat APIs
      * CatIndices
    * Templates
-     * PutTemplate
-     * DeleteTemplate
+     * PutTemplate (done, low)
+     * DeleteTemplate (done, low)
    * Stats
      * Index stats: "level", "shards"
  * Node
@@ -37,7 +37,7 @@
  * Document
    * Get
  * Indexing
-   * Bulk
+   * Bulk (done, high)
  * Misc
    * Analyze
    * NodesInfo: via jest nodechecker/autodiscovery
